@@ -31,7 +31,7 @@ def get_client() -> Groq:
 
 
 def get_model() -> str:
-    return os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    return os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 
 def complete(system_prompt: str, user_prompt: str, temperature: float = 0.2) -> str:
