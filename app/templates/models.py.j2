@@ -1,0 +1,15 @@
+"""SQLAlchemy ORM models, generated from the specification."""
+
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey
+from database import Base
+
+{% for entity in entities %}
+class {{ entity.class_name }}(Base):
+    __tablename__ = "{{ entity.table_name }}"
+
+    id = Column(Integer, primary_key=True, index=True)
+{% for field in entity.fields %}
+    {{ field.name }} = Column({{ field.sqla_type }}{% if field.is_fk %}, ForeignKey("{{ field.fk_target_table }}.id"){% endif %}{% if not field.nullable %}, nullable=False{% endif %}{% if field.unique %}, unique=True{% endif %})
+{% endfor %}
+
+{% endfor %}

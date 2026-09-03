@@ -1,0 +1,14 @@
+fastapi
+gradio
+groq
+httpx
+jinja2
+langchain
+langgraph
+numpy
+pydantic
+pyjwt
+pytest
+python-dotenv
+sentence-transformers
+uvicorn

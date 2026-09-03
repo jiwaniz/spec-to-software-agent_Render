@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+embeddings.npy
+generated_projects/
+*.db
+venv/
+.venv/

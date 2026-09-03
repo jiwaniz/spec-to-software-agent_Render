@@ -1,0 +1,165 @@
+"""
+Pytest test suite, generated from the specification.
+
+Standard CRUD tests are fully deterministic. Custom endpoint tests
+(marked LLM_IMPLEMENT_TEST below) are filled in by the Testing Agent
+using the same LLM-writes-only-the-body pattern as the Coding Agent.
+"""
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from main import app
+from database import Base, get_db
+import models
+import schemas
+
+SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test_{{ app_name }}.db"
+engine = create_engine(SQLALCHEMY_TEST_DATABASE_URL, connect_args={"check_same_thread": False})
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def override_get_db():
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+app.dependency_overrides[get_db] = override_get_db
+client = TestClient(app)
+
+{% if auth_enabled %}
+# Obtain a demo auth token once -- doesn't touch the DB, safe to call before
+# the per-test table setup fixture runs.
+_token_response = client.post("/token", params={"username": "admin", "password": "admin"})
+AUTH_HEADERS = (
+    {"Authorization": f"Bearer {_token_response.json()['access_token']}"}
+    if _token_response.status_code == 200 else {}
+)
+{% else %}
+AUTH_HEADERS = {}
+{% endif %}
+
+
+@pytest.fixture(autouse=True)
+def _reset_db():
+    Base.metadata.create_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
+
+{% for entity in entities %}
+{% if entity.has_create %}
+def test_create_{{ entity.var_name }}():
+    db = TestingSessionLocal()
+{% for line in entity.parent_setup_lines %}
+    {{ line }}
+{% endfor %}
+    db.close()
+
+    payload = {{ entity.create_payload_literal }}
+    response = client.post("{{ entity.create_path }}", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+    assert "id" in data
+{% if entity.sample_field %}
+    assert data["{{ entity.sample_field }}"] == payload["{{ entity.sample_field }}"]
+{% endif %}
+
+{% endif %}
+{% if entity.has_create and entity.has_list %}
+def test_list_{{ entity.var_name }}():
+    db = TestingSessionLocal()
+{% for line in entity.parent_setup_lines %}
+    {{ line }}
+{% endfor %}
+    db.close()
+
+    payload = {{ entity.create_payload_literal }}
+    client.post("{{ entity.create_path }}", json=payload)
+
+    response = client.get("{{ entity.list_path }}")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    assert len(response.json()) >= 1
+
+{% endif %}
+{% if entity.has_create and entity.has_get_one %}
+def test_get_one_{{ entity.var_name }}():
+    db = TestingSessionLocal()
+{% for line in entity.parent_setup_lines %}
+    {{ line }}
+{% endfor %}
+    db.close()
+
+    payload = {{ entity.create_payload_literal }}
+    created = client.post("{{ entity.create_path }}", json=payload).json()
+    {{ entity.var_name }}_id = created["id"]
+
+    response = client.get(f"{{ entity.get_one_path }}")
+    assert response.status_code == 200
+    assert response.json()["id"] == {{ entity.var_name }}_id
+
+{% endif %}
+{% if entity.has_get_one %}
+def test_get_one_{{ entity.var_name }}_not_found():
+    response = client.get("/{{ entity.table_name }}/999999")
+    assert response.status_code == 404
+
+{% endif %}
+{% if entity.has_create and entity.has_update %}
+def test_update_{{ entity.var_name }}():
+    db = TestingSessionLocal()
+{% for line in entity.parent_setup_lines %}
+    {{ line }}
+{% endfor %}
+    db.close()
+
+    payload = {{ entity.create_payload_literal }}
+    created = client.post("{{ entity.create_path }}", json=payload).json()
+    {{ entity.var_name }}_id = created["id"]
+
+    update_payload = {"{{ entity.sample_field }}": {{ entity.sample_value_literal }}}
+    response = client.put(f"{{ entity.update_path }}", json=update_payload)
+    assert response.status_code == 200
+
+{% endif %}
+{% if entity.has_create and entity.has_delete %}
+def test_delete_{{ entity.var_name }}():
+    db = TestingSessionLocal()
+{% for line in entity.parent_setup_lines %}
+    {{ line }}
+{% endfor %}
+    db.close()
+
+    payload = {{ entity.create_payload_literal }}
+    created = client.post("{{ entity.create_path }}", json=payload).json()
+    {{ entity.var_name }}_id = created["id"]
+
+    response = client.delete(f"{{ entity.delete_path }}")
+    assert response.status_code == 204
+
+    get_response = client.get(f"{{ entity.get_one_path }}")
+    assert get_response.status_code == 404
+
+{% endif %}
+{% if entity.has_create and entity.has_fk_fields %}
+def test_create_{{ entity.var_name }}_invalid_foreign_key():
+    payload = {{ entity.standalone_payload_literal }}
+{% for field in entity.fk_fields %}
+    payload["{{ field.name }}"] = 999999
+{% endfor %}
+    response = client.post("{{ entity.create_path }}", json=payload)
+    assert response.status_code == 400
+
+{% endif %}
+{% endfor %}
+{% for ep in custom_endpoints %}
+# LLM_IMPLEMENT_TEST[{{ ep.func_name }}]: {{ ep.description }}
+def test_{{ ep.func_name }}():
+    raise AssertionError("Not implemented yet -- Day 5 Testing Agent fills this in")
+
+{% endfor %}

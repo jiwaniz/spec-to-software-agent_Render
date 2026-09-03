@@ -1,0 +1,35 @@
+"""Pydantic schemas -- request/response validation, generated from the specification."""
+
+from pydantic import BaseModel, ConfigDict
+{% if needs_datetime_import %}
+from datetime import datetime
+{% endif %}
+
+{% for entity in entities %}
+class {{ entity.class_name }}Base(BaseModel):
+{% for field in entity.fields %}
+    {{ field.name }}: {{ field.type_annotation }}
+{% endfor %}
+{% if not entity.has_fields %}
+    pass
+{% endif %}
+
+
+class {{ entity.class_name }}Create({{ entity.class_name }}Base):
+    pass
+
+
+class {{ entity.class_name }}Update(BaseModel):
+{% for field in entity.fields %}
+    {{ field.name }}: {{ field.optional_type_annotation }}
+{% endfor %}
+{% if not entity.has_fields %}
+    pass
+{% endif %}
+
+
+class {{ entity.class_name }}Read({{ entity.class_name }}Base):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+{% endfor %}
