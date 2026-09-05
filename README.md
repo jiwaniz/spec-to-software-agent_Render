@@ -60,12 +60,29 @@ python test_day6_live.py    # Correction loop, real bug injection + fix
 python -m app.agents.refinement_agent
 ```
 
-## Deploy to Hugging Face Spaces
+## Deployment
 
-1. Create a new Space (Gradio SDK)
-2. Push this repo's contents; rename `README_HF.md` -> `README.md` in the Space
-3. Add `GROQ_API_KEY` as a Space secret
-4. Space builds from `app.py`
+Two UI entrypoints exist:
+- `ui.py` (Gradio) -- used by `app.py` for Hugging Face Spaces / Render / Cloud Run
+- `streamlit_app.py` (Streamlit) -- used for Streamlit Community Cloud
+
+**Hugging Face Spaces**: create a Space (Gradio SDK), push repo contents, rename
+`README_HF.md` -> `README.md` in the Space, add `GROQ_API_KEY` as a secret.
+If CPU Basic isn't selectable on your account, ZeroGPU (free) also works --
+`app/rag/retrieval.py` already has a `@spaces.GPU`-decorated function for this.
+
+**Render**: connects via `render.yaml` (Blueprint) or manual Web Service
+(`pip install -r requirements.txt` / `python app.py`). Free tier is 512MB RAM,
+tight for this project's dependencies.
+
+**Google Cloud Run**: no Dockerfile needed -- `Procfile` + buildpacks.
+`gcloud run deploy --source . --memory 2Gi --set-env-vars GROQ_API_KEY=...`
+
+**Streamlit Community Cloud**: point at `streamlit_app.py`, add `GROQ_API_KEY`
+under Secrets.
+
+All platforms need `GROQ_API_KEY` set as an environment variable/secret --
+never commit `.env`.
 
 ## Security
 
