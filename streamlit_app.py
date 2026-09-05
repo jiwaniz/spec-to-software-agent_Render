@@ -79,15 +79,19 @@ if result is not None:
             st.markdown("### Diagram")
             st.code(result["diagram"], language="text")
 
-        # ZIP download
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            for f in result["generated_files"]:
-                zf.writestr(f["path"], f["content"])
-            zf.writestr(result["test_file"]["path"], result["test_file"]["content"])
-            zf.writestr("validation_report.md", result.get("report_md", ""))
+        # ZIP download -- reuse the same package_zip() the Gradio UI uses,
+        # so run_locally.py and spec.json are always included consistently.
+        from app.agents.report_agent import package_zip
+        from app.schemas import GeneratedFile
+        main_files = [GeneratedFile.model_validate(f) for f in result["generated_files"]]
+        test_file = GeneratedFile.model_validate(result["test_file"])
+        zip_bytes = package_zip(
+            main_files, test_file,
+            result.get("report_md", ""),
+            json.dumps(result["spec"], indent=2),
+        )
         st.download_button(
-            "Download project ZIP", buf.getvalue(),
+            "Download project ZIP", zip_bytes,
             file_name=f"{result['spec']['app_name']}.zip",
         )
 
