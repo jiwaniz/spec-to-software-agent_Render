@@ -39,6 +39,38 @@ def build_validation_report_md(spec: SpecOutput, report: ValidationReport) -> st
     return "\n".join(lines)
 
 
+_RUN_LOCALLY_SCRIPT = '''"""
+Run this generated project locally: installs dependencies, starts the
+server, and opens the live API docs in your browser.
+
+Usage: python run_locally.py
+"""
+import subprocess
+import sys
+import time
+import webbrowser
+
+def main():
+    print("Installing dependencies...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+
+    print("Starting server at http://127.0.0.1:8000 ...")
+    proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "main:app", "--port", "8000"])
+
+    time.sleep(2)
+    webbrowser.open("http://127.0.0.1:8000/docs")
+    print("Opened http://127.0.0.1:8000/docs -- press Ctrl+C here to stop the server.")
+
+    try:
+        proc.wait()
+    except KeyboardInterrupt:
+        proc.terminate()
+
+if __name__ == "__main__":
+    main()
+'''
+
+
 def package_zip(main_files: list[GeneratedFile], test_file: GeneratedFile, report_md: str, spec_json: str) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -47,6 +79,7 @@ def package_zip(main_files: list[GeneratedFile], test_file: GeneratedFile, repor
         zf.writestr(test_file.path, test_file.content)
         zf.writestr("validation_report.md", report_md)
         zf.writestr("spec.json", spec_json)
+        zf.writestr("run_locally.py", _RUN_LOCALLY_SCRIPT)
     return buf.getvalue()
 
 
